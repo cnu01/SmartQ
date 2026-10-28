@@ -15,6 +15,9 @@ const Event = require("../models/event");
 const Queue = require("../models/queue");
 const EventHistory = require("../models/eventHistory");
 const QueueCounter = require("../models/queueCounter");
+const Otp = require("../models/otp");
+const RefreshToken = require("../models/refreshTokens");
+const Customer = require("../models/customer");
 
 const ML_SERVICE_URL = process.env.ML_SERVICE_URL || "http://localhost:5001";
 
@@ -45,6 +48,18 @@ const dateRange = () => {
   return { startDate: formatDate(start), endDate: formatDate(end) };
 };
 
+async function resetOperationalCollections() {
+  await Promise.all([
+    Queue.deleteMany({}),
+    Event.deleteMany({}),
+    EventHistory.deleteMany({}),
+    QueueCounter.deleteMany({}),
+    Otp.deleteMany({}),
+    RefreshToken.deleteMany({}),
+    Customer.deleteMany({})
+  ]);
+}
+
 async function upsertUser({ name, email, password, role }) {
   const existing = await User.findOne({ email });
   if (existing) {
@@ -59,12 +74,28 @@ async function upsertUser({ name, email, password, role }) {
   return "created";
 }
 
-async function resetDemoCollections() {
-  await Queue.deleteMany({});
-  await Event.deleteMany({});
-  await EventHistory.deleteMany({});
-  await QueueCounter.deleteMany({});
-}
+/** 45 join times — business hours only (matches Analytics charts). */
+const JOIN_HOUR_SCHEDULE = [
+  10, 10, 10, 10,
+  11, 11, 11,
+  12, 12, 12, 12, 12,
+  14, 14, 14, 14,
+  15, 15, 15,
+  16, 16, 16, 16,
+  17, 17, 17, 17, 17, 17,
+  18, 18, 18, 18, 18, 18, 18, 18,
+  19, 19, 19, 19, 19,
+  20, 20, 20
+];
+
+const buildJoinTimestamp = (hour, minute) => {
+  const createdAt = new Date();
+  createdAt.setHours(hour, minute, 0, 0);
+  if (createdAt.getTime() > Date.now()) {
+    createdAt.setDate(createdAt.getDate() - 1);
+  }
+  return createdAt;
+};
 
 function buildTrainingPayload(queueRows) {
   const totalInQueue = queueRows.length;
@@ -121,18 +152,18 @@ async function main() {
   await mongoose.connect(process.env.MONGO_URI);
   const { startDate, endDate } = dateRange();
 
-  console.log("Upserting demo users...");
+  console.log("Clearing queues, events, history (keeping login accounts)...");
+  await resetOperationalCollections();
+
+  console.log("Ensuring admin + demo customer logins...");
   await upsertUser(ADMIN);
   for (const user of DEMO_USERS) {
     await upsertUser(user);
   }
 
-  console.log("Resetting events, queues, and history...");
-  await resetDemoCollections();
-
   const eventsToCreate = [
     {
-      title: "City General — OPD Morning",
+      title: "General Health Checkup — City General OPD",
       organizationType: "Hospital",
       organizationName: "City General Hospital",
       doctorName: "Dr. Demo Physician",
@@ -146,7 +177,8 @@ async function main() {
       location: "Block A, Ground Floor",
       totalTokens: 40,
       serviceTypes: ["General Checkup", "Blood Test", "Pharmacy Pickup"],
-      crowdLevel: "High"
+      crowdLevel: "High",
+      status: "Ongoing"
     },
     {
       title: "Metro Bank — Branch Services",
@@ -161,7 +193,8 @@ async function main() {
       location: "Main Branch, Counter Hall",
       totalTokens: 25,
       serviceTypes: ["Account Opening", "Loan Inquiry", "Cheque Deposit"],
-      crowdLevel: "Medium"
+      crowdLevel: "Medium",
+      status: "Ongoing"
     },
     {
       title: "TechCorp — Campus Hiring",
@@ -177,7 +210,8 @@ async function main() {
       location: "Interview Block, Room 204",
       totalTokens: 20,
       serviceTypes: ["Technical Round", "HR Round"],
-      crowdLevel: "Medium"
+      crowdLevel: "Medium",
+      status: "Upcoming"
     },
     {
       title: "Citizen Service Center — Documents",
@@ -192,22 +226,24 @@ async function main() {
       location: "Gov Complex, Wing C",
       totalTokens: 30,
       serviceTypes: ["ID Verification", "Certificate Request"],
-      crowdLevel: "Low"
+      crowdLevel: "Low",
+      status: "Ongoing"
     }
   ];
 
   const events = await Event.insertMany(eventsToCreate);
   console.log(`Created ${events.length} active events.`);
 
+  // 45 queue rows — 28 waiting (dashboard-style totals)
   const queuePlan = [
     {
       event: events[0],
       scope: "Hospital",
       service: "General Checkup",
       rows: [
-        { status: "waiting", count: 6 },
+        { status: "waiting", count: 9 },
         { status: "serving", count: 2 },
-        { status: "completed", count: 4 },
+        { status: "completed", count: 3 },
         { status: "cancelled", count: 1 }
       ]
     },
@@ -216,7 +252,7 @@ async function main() {
       scope: "Hospital",
       service: "Blood Test",
       rows: [
-        { status: "waiting", count: 3 },
+        { status: "waiting", count: 4 },
         { status: "serving", count: 1 },
         { status: "completed", count: 2 },
         { status: "cancelled", count: 0 }
@@ -229,7 +265,7 @@ async function main() {
       rows: [
         { status: "waiting", count: 5 },
         { status: "serving", count: 1 },
-        { status: "completed", count: 3 },
+        { status: "completed", count: 2 },
         { status: "cancelled", count: 1 }
       ]
     },
@@ -238,7 +274,7 @@ async function main() {
       scope: "Banking",
       service: "Loan Inquiry",
       rows: [
-        { status: "waiting", count: 2 },
+        { status: "waiting", count: 3 },
         { status: "serving", count: 1 },
         { status: "completed", count: 1 },
         { status: "cancelled", count: 0 }
@@ -251,7 +287,7 @@ async function main() {
       rows: [
         { status: "waiting", count: 4 },
         { status: "serving", count: 1 },
-        { status: "completed", count: 2 },
+        { status: "completed", count: 1 },
         { status: "cancelled", count: 0 }
       ]
     },
@@ -260,7 +296,7 @@ async function main() {
       scope: "Government",
       service: "ID Verification",
       rows: [
-        { status: "waiting", count: 3 },
+        { status: "waiting", count: 2 },
         { status: "serving", count: 0 },
         { status: "completed", count: 1 },
         { status: "cancelled", count: 0 }
@@ -271,6 +307,7 @@ async function main() {
   const scopeSeq = new Map();
   let guestIndex = 0;
   const queueDocs = [];
+  let scheduleIndex = 0;
 
   for (const plan of queuePlan) {
     const eventId = String(plan.event._id);
@@ -281,6 +318,11 @@ async function main() {
         scopeSeq.set(plan.scope, seq);
 
         const demoUser = DEMO_USERS[(guestIndex - 1) % DEMO_USERS.length];
+        const joinHour =
+          JOIN_HOUR_SCHEDULE[scheduleIndex % JOIN_HOUR_SCHEDULE.length] ?? 17;
+        scheduleIndex += 1;
+        const createdAt = buildJoinTimestamp(joinHour, (guestIndex * 7) % 60);
+
         queueDocs.push({
           tokenNumber: seq,
           service: plan.service,
@@ -292,7 +334,7 @@ async function main() {
           guestEmail: demoUser.email,
           guestMobile: `900000${String(guestIndex).padStart(4, "0")}`,
           status: block.status,
-          createdAt: new Date(Date.now() - guestIndex * 7 * 60 * 1000)
+          createdAt
         });
       }
     }

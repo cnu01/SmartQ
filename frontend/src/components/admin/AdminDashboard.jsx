@@ -12,6 +12,10 @@ import {
   ArrowRight
 } from 'lucide-react';
 import Sidebar from '../shared/Sidebar';
+import {
+  computeAverageWaitMinutes,
+  countWaitingQueues
+} from '../../utils/queueWaitHelpers.mjs';
 import '../../styles/admin.css';
 import '../../styles/global.css';
 
@@ -43,18 +47,15 @@ const AdminDashboard = ({ onNavigate, goBack, currentPage }) => {
         const queues = queueRes.data || [];
         const events = eventsRes.data || [];
 
-        // Calculate stats
-        let totalWaitTime = 0;
-        queues.forEach(q => {
-          totalWaitTime += q.estimatedWaitTime || 0;
-        });
+        const waitingCount = countWaitingQueues(queues);
+        const averageWaitTime = computeAverageWaitMinutes(queues);
 
         setStats({
           totalQueues: queues.length,
-          activeCounters: Math.ceil(queues.length / 5) || 0,
+          activeCounters: Math.ceil(waitingCount / 5) || 0,
           pendingEvents: events.filter(e => e.status === 'Upcoming').length,
           totalCustomers: queues.length,
-          averageWaitTime: queues.length > 0 ? Math.round(totalWaitTime / queues.length) : 0
+          averageWaitTime
         });
 
         // Fetch predictions in background so dashboard stats render immediately.

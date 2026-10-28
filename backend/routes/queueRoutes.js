@@ -422,7 +422,36 @@ router.get("/status/:tokenNumber", async (req, res) => {
 // =======================
 router.get("/", authMiddleware, adminMiddleware, async (req, res) => {
   try {
-    const queue = await Queue.find().sort({ organizationType: 1, tokenNumber: 1 }).lean();
+    const items = await Queue.find().sort({ organizationType: 1, tokenNumber: 1 }).lean();
+    const waitingItems = items.filter((item) => item.status === "waiting");
+    const serviceTotals = waitingItems.reduce((acc, item) => {
+      const key = getTokenScope(item);
+      acc[key] = (acc[key] || 0) + 1;
+      return acc;
+    }, {});
+    const servicePositions = {};
+
+    const queue = items.map((item) => {
+      if (item.status !== "waiting") {
+        return {
+          ...item,
+          position: 0,
+          estimatedWaitTime: 0
+        };
+      }
+
+      const scope = getTokenScope(item);
+      servicePositions[scope] = (servicePositions[scope] || 0) + 1;
+      const position = servicePositions[scope];
+
+      return {
+        ...item,
+        position,
+        totalWaiting: serviceTotals[scope] || 0,
+        estimatedWaitTime: calculateWaitTime(position)
+      };
+    });
+
     res.json(queue);
   } catch (error) {
     res.status(500).json({ message: error.message });

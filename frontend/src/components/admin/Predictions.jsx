@@ -109,9 +109,9 @@ const Predictions = ({ onNavigate, goBack, currentPage }) => {
   const formatStatPercent = (value) =>
     Number.isFinite(value) ? `${value}%` : 'N/A';
 
-  const statsSubtitle = predictions.mlModelStats?.isSimulated
-    ? 'Estimated from current queue activity'
-    : 'From trained Random Forest models (R² on hold-out data)';
+  const statsSubtitle = predictions.mlModelStats?.trained
+    ? 'From trained Random Forest models (R² on hold-out data)'
+    : 'Estimated from current queue activity (train models for R² scores)';
 
   return (
     <div className="admin-layout">

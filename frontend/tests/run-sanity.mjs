@@ -6,6 +6,10 @@ import {
   getUserInitials
 } from "../src/utils/uiHelpers.mjs";
 import {
+  computeAverageWaitMinutes,
+  countWaitingQueues
+} from "../src/utils/queueWaitHelpers.mjs";
+import {
   addSchedulerService,
   applyAdminLoginSuccess,
   getAdminLoginErrorMessage,
@@ -178,6 +182,18 @@ const checks = [
         }),
         "Doctor Name and Profession are required for Hospital events."
       );
+    }
+  },
+  {
+    name: "computeAverageWaitMinutes derives wait from queue position",
+    run() {
+      const sample = [
+        { organizationType: "Hospital", tokenNumber: 1, status: "waiting" },
+        { organizationType: "Hospital", tokenNumber: 2, status: "waiting" },
+        { organizationType: "Hospital", tokenNumber: 3, status: "completed" }
+      ];
+      assert.equal(countWaitingQueues(sample), 2);
+      assert.ok(computeAverageWaitMinutes(sample) >= 4);
     }
   }
 ];
