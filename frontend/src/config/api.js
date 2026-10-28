@@ -1,5 +1,17 @@
 const normalizeBaseUrl = (value) => String(value || "").replace(/\/+$/, "");
 
+/** Login must hit Node backend, not the Flask ML service on Render. */
+export const isMlServiceUrl = (url) => {
+  const normalized = normalizeBaseUrl(url);
+  if (!normalized) return false;
+  try {
+    const host = new URL(normalized).hostname.toLowerCase();
+    return host.includes("smartq-ml") || host.includes("-ml-");
+  } catch {
+    return normalized.toLowerCase().includes("smartq-ml");
+  }
+};
+
 const isLocalHost = (hostname) =>
   hostname === "localhost" || hostname === "127.0.0.1";
 
@@ -26,6 +38,29 @@ const getConfiguredApiBaseUrl = () => {
       : "";
 
   return normalizeBaseUrl(runtimeUrl);
+};
+
+export const getApiConfigurationError = () => {
+  const candidate =
+    getConfiguredApiBaseUrl() ||
+    PROD_API_BASE_URL ||
+    (typeof window !== "undefined" ? window.__SMARTQ_API_URL__ : "");
+
+  if (!candidate) {
+    return (
+      "Backend API URL is not set. Deploy Render service smartq-backend, then set REACT_APP_API_URL " +
+      "on Netlify (not the smartq-ml URL)."
+    );
+  }
+
+  if (isMlServiceUrl(candidate)) {
+    return (
+      "REACT_APP_API_URL is set to the ML service (smartq-ml-tbgh). Login requires the Node " +
+      "smartq-backend URL from the Render dashboard."
+    );
+  }
+
+  return null;
 };
 
 const getLocalApiBaseUrl = () => {
@@ -55,10 +90,18 @@ const getApiBaseUrl = () => {
   const configuredBaseUrl = getConfiguredApiBaseUrl();
 
   if (configuredBaseUrl) {
+    if (isMlServiceUrl(configuredBaseUrl)) {
+      console.error(getApiConfigurationError());
+      return "";
+    }
     return configuredBaseUrl;
   }
 
   if (PROD_API_BASE_URL) {
+    if (isMlServiceUrl(PROD_API_BASE_URL)) {
+      console.error(getApiConfigurationError());
+      return "";
+    }
     return PROD_API_BASE_URL;
   }
 

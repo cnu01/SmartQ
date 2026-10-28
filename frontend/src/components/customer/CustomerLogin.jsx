@@ -10,6 +10,7 @@ import {
   verifyCustomerLoginOtp,
   persistCustomerProfile
 } from '../../services/api';
+import { getApiConfigurationError } from '../../config/api';
 import { getServiceUnavailableMessage } from '../../utils/interactionHelpers.mjs';
 
 const OTP_COOLDOWN_SECONDS = 60;
@@ -61,6 +62,12 @@ const CustomerLogin = ({ onNavigate, goBack, currentPage }) => {
 
     try {
       setLoading(true);
+
+      const apiConfigError = getApiConfigurationError();
+      if (apiConfigError) {
+        setErrorMessage(apiConfigError);
+        return;
+      }
 
       if (isSignUp) {
         const nameToSave = formData.name?.trim() || (formData.email ? formData.email.split('@')[0] : formData.mobile);
@@ -119,7 +126,7 @@ const CustomerLogin = ({ onNavigate, goBack, currentPage }) => {
       });
     } catch (error) {
       const msg =
-        getServiceUnavailableMessage(error) ||
+        getServiceUnavailableMessage(error, getApiConfigurationError()) ||
         error?.response?.data?.message ||
         error?.message ||
         'Authentication failed. Please try again.';

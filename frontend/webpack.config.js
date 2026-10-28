@@ -4,16 +4,20 @@ const HtmlWebpackPlugin = require('html-webpack-plugin');
 const CopyWebpackPlugin = require('copy-webpack-plugin');
 const webpack = require('webpack');
 
-const readManualApiUrlFromConfigFile = () => {
+const readManualUrlsFromConfigFile = () => {
   try {
     const source = fs.readFileSync(
       path.resolve(__dirname, 'public/smartq-config.js'),
       'utf8'
     );
-    const match = source.match(/apiUrl\s*=\s*["']([^"']+)["']/);
-    return match ? match[1].replace(/\/+$/, '') : '';
+    const apiMatch = source.match(/apiUrl\s*=\s*["']([^"']+)["']/);
+    const mlMatch = source.match(/mlUrl\s*=\s*["']([^"']+)["']/);
+    return {
+      api: apiMatch ? apiMatch[1].replace(/\/+$/, '') : '',
+      ml: mlMatch ? mlMatch[1].replace(/\/+$/, '') : '',
+    };
   } catch {
-    return '';
+    return { api: '', ml: '' };
   }
 };
 
@@ -26,10 +30,11 @@ class SmartQRuntimeConfigPlugin {
           stage: webpack.Compilation.PROCESS_ASSETS_STAGE_OPTIMIZE_INLINE,
         },
         () => {
+          const manual = readManualUrlsFromConfigFile();
           const apiFromEnv = String(process.env.REACT_APP_API_URL || '').replace(/\/+$/, '');
           const mlFromEnv = String(process.env.REACT_APP_ML_URL || '').replace(/\/+$/, '');
-          const apiUrl = apiFromEnv || readManualApiUrlFromConfigFile();
-          const mlUrl = mlFromEnv;
+          const apiUrl = apiFromEnv || manual.api;
+          const mlUrl = mlFromEnv || manual.ml;
           const content = [
             '/* Smart\'Q runtime config — generated at build */',
             `window.__SMARTQ_API_URL__=${JSON.stringify(apiUrl)};`,
@@ -90,8 +95,8 @@ module.exports = {
     new HtmlWebpackPlugin({
       template: './public/index.html',
       templateParameters: {
-        SMARTQ_API_URL: process.env.REACT_APP_API_URL || readManualApiUrlFromConfigFile() || '',
-        SMARTQ_ML_URL: process.env.REACT_APP_ML_URL || '',
+        SMARTQ_API_URL: process.env.REACT_APP_API_URL || readManualUrlsFromConfigFile().api || '',
+        SMARTQ_ML_URL: process.env.REACT_APP_ML_URL || readManualUrlsFromConfigFile().ml || '',
       },
     }),
     new SmartQRuntimeConfigPlugin(),

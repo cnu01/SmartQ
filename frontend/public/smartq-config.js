@@ -1,11 +1,17 @@
 /**
- * Production API URL (Render **smartq-backend**, not ML).
- * Netlify: also set REACT_APP_API_URL in site env and redeploy.
- * If login still hits netlify.app/api/..., set the URL below and push.
+ * Production Render URLs (no trailing slash).
+ * mlUrl  → smartq-ml (Python) — predictions only
+ * apiUrl → smartq-backend (Node) — login, queue, admin API
  */
 (function (w) {
+  var mlUrl = "https://smartq-ml-tbgh.onrender.com";
   var apiUrl = "";
-  // Example: apiUrl = "https://smartq-backend-xxxx.onrender.com";
+  // After smartq-backend is Live on Render, paste its URL here, e.g.:
+  // apiUrl = "https://smartq-backend-xxxxx.onrender.com";
+
+  if (mlUrl) {
+    w.__SMARTQ_ML_BASE_URL__ = mlUrl.replace(/\/+$/, "");
+  }
   if (apiUrl) {
     w.__SMARTQ_API_URL__ = apiUrl.replace(/\/+$/, "");
   }

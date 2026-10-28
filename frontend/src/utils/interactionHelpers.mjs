@@ -16,7 +16,11 @@ export const runHeaderLogout = ({ onLogout, onNavigate }) => {
   }
 };
 
-export const getServiceUnavailableMessage = (error) => {
+export const getServiceUnavailableMessage = (error, configurationError = null) => {
+  if (configurationError) {
+    return configurationError;
+  }
+
   if (!error?.response) {
     return "Authentication service is unavailable. Check the backend URL and server status.";
   }
