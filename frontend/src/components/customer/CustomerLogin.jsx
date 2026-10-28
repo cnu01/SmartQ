@@ -7,7 +7,8 @@ import {
   registerCustomer,
   sendCustomerLoginOtp,
   setAuthToken,
-  verifyCustomerLoginOtp
+  verifyCustomerLoginOtp,
+  persistCustomerProfile
 } from '../../services/api';
 import { getServiceUnavailableMessage } from '../../utils/interactionHelpers.mjs';
 
@@ -102,7 +103,13 @@ const CustomerLogin = ({ onNavigate, goBack, currentPage }) => {
 
       if (data?.accessToken) {
         localStorage.setItem('token', data.accessToken);
+        localStorage.setItem('authRole', 'customer');
         setAuthToken(data.accessToken);
+        persistCustomerProfile({
+          name: data.user?.name || '',
+          email: data.user?.email || '',
+          phone: data.user?.phone || ''
+        });
       }
 
       onNavigate('customer-dashboard', {

@@ -24,6 +24,7 @@ class QueueMLModels:
         self.is_trained = False
         self.total_records = 0
         self.buffer = []
+        self.model_scores = {}
 
         self._load_all_models()
 
@@ -68,6 +69,7 @@ class QueueMLModels:
             if trained_any:
                 self.is_trained = True
                 self.total_records += len(self.buffer)
+                self._record_scores(r1, r2, r3, r4)
                 self.buffer = []
                 self._save_metadata()
                 print(f"[ML] ✓ Auto training complete on REAL data. Total: {self.total_records}")
@@ -209,9 +211,25 @@ class QueueMLModels:
         score = self.peak_hours_model.score(X_test, y_test)
         return {'score': round(score, 4)}
 
-    # ─────────────────────────────────────────────────────
-    # PREDICTIONS
-    # ─────────────────────────────────────────────────────
+    def _record_scores(self, *train_results):
+        mapping = {
+            'waitingTime': train_results[0].get('score') if train_results[0] else None,
+            'queueLength': train_results[1].get('score') if train_results[1] else None,
+            'noShow': train_results[2].get('score') if train_results[2] else None,
+            'peakHours': train_results[3].get('score') if train_results[3] else None
+        }
+        for key, value in mapping.items():
+            if value is not None:
+                self.model_scores[key] = value
+
+    def record_training_results(self, results):
+        if not isinstance(results, dict):
+            return
+        for key in ['waitingTime', 'queueLength', 'noShow', 'peakHours']:
+            score = (results.get(key) or {}).get('score')
+            if score is not None:
+                self.model_scores[key] = score
+        self._save_metadata()
     def predict_waiting_time(self, features):
         try:
             self._load_model_if_needed('waiting_time')
@@ -314,10 +332,19 @@ class QueueMLModels:
             meta = joblib.load(meta_path)
             self.is_trained    = meta.get('is_trained', False)
             self.total_records = meta.get('total_records', 0)
+            self.model_scores  = meta.get('model_scores', {})
             print(f"[ML] Models loaded. Trained on {self.total_records} records.")
 
     def _save_metadata(self):
         joblib.dump(
-            {'is_trained': self.is_trained, 'total_records': self.total_records},
+            {
+                'is_trained': self.is_trained,
+                'total_records': self.total_records,
+                'model_scores': getattr(self, 'model_scores', {})
+            },
             os.path.join(self.models_dir, 'metadata.pkl')
         )
+
+    # ─────────────────────────────────────────────────────
+    # PREDICTIONS
+    # ─────────────────────────────────────────────────────

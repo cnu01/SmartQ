@@ -1,0 +1,55 @@
+# Render Blueprint — Smart'Q
+# Deploy: Dashboard → New → Blueprint → connect repo → apply this file.
+# Set secret env vars in the Render dashboard after first deploy.
+
+services:
+  - type: web
+    name: smartq-ml
+    runtime: python
+    plan: free
+    rootDir: backend/ml
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn --bind 0.0.0.0:$PORT --timeout 120 --workers 1 ml_service:app
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.9
+      - key: FRONTEND_ORIGINS
+        sync: false
+
+  - type: web
+    name: smartq-backend
+    runtime: node
+    plan: free
+    rootDir: backend
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: NODE_VERSION
+        value: 20.11.0
+      - key: NODE_ENV
+        value: production
+      - key: ML_SERVICE_URL
+        fromService:
+          type: web
+          name: smartq-ml
+          envVarKey: RENDER_EXTERNAL_URL
+      - key: MONGO_URI
+        sync: false
+      - key: JWT_ACCESS_SECRET
+        sync: false
+      - key: JWT_ACCESS_EXPIRES_IN
+        value: 8h
+      - key: FRONTEND_ORIGINS
+        sync: false
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        sync: false
+      - key: SMTP_SECURE
+        sync: false
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
+        sync: false
+      - key: SMTP_FROM
+        sync: false

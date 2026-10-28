@@ -5,13 +5,25 @@ import Sidebar from '../shared/Sidebar';
 import '../../styles/admin.css';
 import '../../styles/global.css';
 
+const parseHourSortKey = (hourLabel) => {
+  const match = String(hourLabel || '').match(/^(\d{1,2})/);
+  return match ? Number(match[1]) : 0;
+};
+
+const getPeakBadgeColor = (level) => {
+  const normalized = String(level || '').toLowerCase();
+  if (normalized === 'high') return '#EF4444';
+  if (normalized === 'medium') return 'var(--color-yellow)';
+  return 'var(--color-green-light)';
+};
+
 const Analytics = ({ onNavigate, goBack, currentPage }) => {
   const [analyticsData, setAnalyticsData] = useState({
     queueTrends: [],
     peakHours: [],
     servicePopularity: []
   });
-  const [mlModelAccuracy, setMlModelAccuracy] = useState(null);
+  const [mlModelStats, setMlModelStats] = useState(null);
   const [predictions, setPredictions] = useState({ peakTimes: [] });
   const [loading, setLoading] = useState(true);
 
@@ -34,7 +46,15 @@ const Analytics = ({ onNavigate, goBack, currentPage }) => {
           trends[hourStr] = (trends[hourStr] || 0) + 1;
         });
 
-        const queueTrends = Object.entries(trends).map(([hour, value]) => ({ hour, value })).slice(-8);
+        const queueTrends = Object.entries(trends)
+          .map(([hour, value]) => ({ hour, value }))
+          .sort((a, b) => parseHourSortKey(a.hour) - parseHourSortKey(b.hour))
+          .slice(-8);
+
+        const peakHours = Object.entries(trends)
+          .map(([hour, count]) => ({ hour, count }))
+          .sort((a, b) => b.count - a.count)
+          .slice(0, 6);
 
         const serviceCount = {};
         queues.forEach(q => {
@@ -48,19 +68,19 @@ const Analytics = ({ onNavigate, goBack, currentPage }) => {
 
         setAnalyticsData({
           queueTrends: queueTrends.length > 0 ? queueTrends : [],
-          peakHours: [],
+          peakHours,
           servicePopularity: servicePopularity.length > 0 ? servicePopularity : []
         });
 
         axios.get(`${API_BASE_URL}/api/predictions`, getAuthConfig())
           .then((predsRes) => {
             setPredictions(predsRes.data || { peakTimes: [] });
-            setMlModelAccuracy(predsRes?.data?.mlModelStats?.modelAccuracy ?? null);
+            setMlModelStats(predsRes?.data?.mlModelStats || null);
           })
           .catch((err) => {
             console.warn('Could not fetch predictions:', err);
             setPredictions({ peakTimes: [] });
-            setMlModelAccuracy(null);
+            setMlModelStats(null);
           });
       } catch (error) {
         console.error('Error fetching analytics:', error);
@@ -76,6 +96,13 @@ const Analytics = ({ onNavigate, goBack, currentPage }) => {
     1,
     ...analyticsData.queueTrends.map((item) => Number(item.value) || 0)
   );
+
+  const mlLive = Boolean(mlModelStats?.trained && !mlModelStats?.isSimulated);
+  const mlBannerText = mlLive
+    ? `Live ML forecasts updated ${mlModelStats?.lastUpdated ? new Date(mlModelStats.lastUpdated).toLocaleTimeString() : 'recently'}`
+    : mlModelStats?.isSimulated
+      ? 'Showing estimated insights from current queue volume (train ML for live models)'
+      : 'Predictions appear after model training is complete';
 
   return (
     <div className="admin-layout">
@@ -98,9 +125,7 @@ const Analytics = ({ onNavigate, goBack, currentPage }) => {
             <div>
               <h3 style={{ margin: 0, marginBottom: '0.5rem' }}>ML Model Performance</h3>
               <p style={{ margin: 0, opacity: 0.9, fontSize: '0.875rem' }}>
-                {Number.isFinite(mlModelAccuracy)
-                  ? `Real-time predictions with ${mlModelAccuracy}% accuracy`
-                  : 'Predictions appear after model training is complete'}
+                {mlBannerText}
               </p>
             </div>
             <button
@@ -120,18 +145,28 @@ const Analytics = ({ onNavigate, goBack, currentPage }) => {
         <div className="analytics-container">
           <div className="analytics-card">
             <h3 className="analytics-title">Queue Trends (Today)</h3>
-            <div className="chart-container">
-              {analyticsData.queueTrends.map((item, index) => {
-                const height = (item.value / queueTrendMaxValue) * 100;
-                return (
-                  <div key={index} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                    <div className="chart-bar" style={{ height: `${height}%`, width: '100%' }}>
-                      <span className="chart-value">{item.value}</span>
+            <div className="chart-container" style={{ paddingBottom: '2.5rem' }}>
+              {analyticsData.queueTrends.length === 0 ? (
+                <div style={{ width: '100%', textAlign: 'center', color: 'var(--color-gray-500)' }}>
+                  No queue activity recorded yet today
+                </div>
+              ) : (
+                analyticsData.queueTrends.map((item, index) => {
+                  const height = (item.value / queueTrendMaxValue) * 100;
+                  return (
+                    <div
+                      key={`${item.hour}-${index}`}
+                      className="chart-column"
+                      style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-end', height: '100%' }}
+                    >
+                      <div className="chart-bar" style={{ height: `${height}%`, width: '100%' }}>
+                        <span className="chart-value">{item.value}</span>
+                      </div>
+                      <span className="chart-label-static">{item.hour}</span>
                     </div>
-                    <span className="chart-label">{item.hour}</span>
-                  </div>
-                );
-              })}
+                  );
+                })
+              )}
             </div>
             <div className="chart-legend">
               <div className="legend-item">
@@ -142,21 +177,27 @@ const Analytics = ({ onNavigate, goBack, currentPage }) => {
           </div>
 
           <div className="analytics-card">
-            <h3 className="analytics-title">Peak Hours</h3>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              {analyticsData.peakHours.map((item, index) => (
-                <div key={index} style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  padding: '1rem',
-                  backgroundColor: 'var(--color-gray-50)',
-                  borderRadius: '8px'
-                }}>
-                  <span style={{ fontWeight: 500 }}>{item.hour}</span>
-                  <span style={{ fontWeight: 600, color: 'var(--color-primary)' }}>{item.count} customers</span>
+            <h3 className="analytics-title">Peak Hours (today, actual)</h3>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', minHeight: '120px' }}>
+              {analyticsData.peakHours.length === 0 ? (
+                <div style={{ color: 'var(--color-gray-500)', fontSize: '0.875rem' }}>
+                  No join timestamps yet — peak hours appear when customers join the queue.
                 </div>
-              ))}
+              ) : (
+                analyticsData.peakHours.map((item, index) => (
+                  <div key={`${item.hour}-${index}`} style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    padding: '1rem',
+                    backgroundColor: 'var(--color-gray-50)',
+                    borderRadius: '8px'
+                  }}>
+                    <span style={{ fontWeight: 500 }}>{item.hour}</span>
+                    <span style={{ fontWeight: 600, color: 'var(--color-primary)' }}>{item.count} joins</span>
+                  </div>
+                ))
+              )}
             </div>
           </div>
 
@@ -201,9 +242,11 @@ const Analytics = ({ onNavigate, goBack, currentPage }) => {
             {predictions.peakTimes && predictions.peakTimes.length > 0 ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                 {predictions.peakTimes.slice(0, 6).map((item, index) => {
-                  const maxCustomers = Math.max(...predictions.peakTimes.map(p => p.customers));
-                  const width = (item.customers / maxCustomers) * 100;
-                  const color = item.prediction === 'High' ? '#EF4444' : item.prediction === 'Medium' ? 'var(--color-yellow)' : 'var(--color-green-light)';
+                  const peakSlice = predictions.peakTimes.slice(0, 6);
+                  const maxCustomers = Math.max(...peakSlice.map(p => Number(p.customers) || 0), 1);
+                  const customers = Number(item.customers) || 0;
+                  const width = (customers / maxCustomers) * 100;
+                  const color = getPeakBadgeColor(item.prediction);
                   return (
                     <div key={index} style={{
                       padding: '1rem',
@@ -218,7 +261,8 @@ const Analytics = ({ onNavigate, goBack, currentPage }) => {
                           </span>
                           <span className="badge" style={{
                             backgroundColor: `${color}20`,
-                            color: color
+                            color: color,
+                            textTransform: 'capitalize'
                           }}>
                             {item.prediction}
                           </span>

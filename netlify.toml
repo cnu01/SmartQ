@@ -1,0 +1,16 @@
+# Netlify — Smart'Q frontend (static React build)
+# Site settings → Build & deploy → use these values (or keep this file at repo root).
+
+[build]
+  base = "frontend"
+  command = "npm ci && npm run build"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "20"
+
+# SPA: client-side routing / refresh on deep links
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

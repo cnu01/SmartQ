@@ -499,7 +499,7 @@ const WelcomePage = ({ onNavigate, goBack, currentPage }) => {
               <a href="#" style={{ color: '#9CA3AF', textDecoration: 'none' }}><Linkedin size={24} /></a>
             </div>
             <p style={{ color: '#9CA3AF', marginTop: '1.5rem', fontSize: '0.875rem' }}>
-              © 2024 Smart'Q. All rights reserved.
+              Smart&apos;Q demo application
             </p>
           </div>
         </div>

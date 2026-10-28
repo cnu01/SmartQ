@@ -1,5 +1,14 @@
 import React, { useState, useEffect } from "react";
-import { checkBackendHealth, getEventById, setAuthToken } from "./services/api";
+import {
+  checkBackendHealth,
+  getEventById,
+  setAuthToken,
+  fetchCurrentUser,
+  readStoredCustomerProfile,
+  persistCustomerProfile,
+  clearAuthSession,
+  resolvePageForRole
+} from "./services/api";
 import "./styles/global.css";
 
 // Customer Components
@@ -27,17 +36,17 @@ function App() {
   const [pageData, setPageData] = useState(null);
   const [navigationHistory, setNavigationHistory] = useState([]);
   const [backendStatus, setBackendStatus] = useState("");
-  const [customerData, setCustomerData] = useState(null);
+  const [customerData, setCustomerData] = useState(() => readStoredCustomerProfile());
+  const [sessionReady, setSessionReady] = useState(false);
 
   const navigate = (page, data = null) => {
     if (page !== currentPage) {
       setNavigationHistory((prev) => [...prev, currentPage]);
     }
 
-    // Persist customer identity so JoinQueue can send token confirmation emails.
-    // Don't require `data.name` because OTP-based auth may return empty/undefined name.
     if (page === "customer-dashboard" && data && (data.name || data.email || data.phone)) {
       setCustomerData(data);
+      persistCustomerProfile(data);
     }
 
     setCurrentPage(page);
@@ -49,7 +58,7 @@ function App() {
     setCustomerData(null);
     setPageData(null);
     setNavigationHistory([]);
-    localStorage.removeItem("currentPage");
+    clearAuthSession();
     setCurrentPage("landing");
   };
 
@@ -73,15 +82,75 @@ function App() {
       .catch(() => setBackendStatus("Backend not reachable ❌"));
   }, []);
 
-  // 🔥 Restore token on refresh
   useEffect(() => {
-    const token = localStorage.getItem("token");
-    if (token) {
-      setAuthToken(token);
-    }
+    let cancelled = false;
+
+    const restoreSession = async () => {
+      const token = localStorage.getItem("token");
+      if (token) {
+        setAuthToken(token);
+      }
+
+      const savedPage = localStorage.getItem("currentPage");
+
+      if (!token) {
+        if (
+          savedPage &&
+          savedPage !== "customer-dashboard" &&
+          !savedPage.startsWith("admin-") &&
+          savedPage !== "queue-management" &&
+          savedPage !== "event-scheduler" &&
+          savedPage !== "event-history" &&
+          savedPage !== "counter-management" &&
+          savedPage !== "analytics" &&
+          savedPage !== "predictions" &&
+          savedPage !== "settings"
+        ) {
+          setCurrentPage(savedPage);
+        }
+        if (!cancelled) setSessionReady(true);
+        return;
+      }
+
+      try {
+        const user = await fetchCurrentUser();
+        if (cancelled || !user) return;
+
+        const role = user.role === "admin" ? "admin" : "customer";
+        localStorage.setItem("authRole", role);
+
+        if (role === "customer") {
+          const profile = {
+            name: user.name || "",
+            email: user.email || "",
+            phone: user.phone || ""
+          };
+          setCustomerData(profile);
+          persistCustomerProfile(profile);
+        }
+
+        const nextPage = resolvePageForRole(role, savedPage);
+        setCurrentPage(nextPage);
+        localStorage.setItem("currentPage", nextPage);
+      } catch {
+        clearAuthSession();
+        setCustomerData(null);
+        setCurrentPage("landing");
+      } finally {
+        if (!cancelled) setSessionReady(true);
+      }
+    };
+
+    restoreSession();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
+    if (!sessionReady) return;
+
     const params = new URLSearchParams(window.location.search);
     const eventId = params.get("eventId");
     if (!eventId) return;
@@ -96,12 +165,12 @@ function App() {
         localStorage.setItem("currentPage", "join-queue");
         window.history.replaceState({}, "", window.location.pathname);
       } catch (error) {
-        // Keep default page when event lookup fails.
+        // Keep current page when event lookup fails.
       }
     };
 
     openEventFromQr();
-  }, []);
+  }, [sessionReady]);
 
   const renderPage = () => {
     switch (currentPage) {
@@ -152,6 +221,14 @@ function App() {
         return <LandingPage onNavigate={navigate} goBack={goBack} currentPage={currentPage} />;
     }
   };
+
+  if (!sessionReady) {
+    return (
+      <div className="App" style={{ minHeight: "100vh", display: "grid", placeItems: "center" }}>
+        Loading…
+      </div>
+    );
+  }
 
   return <div className="App">{renderPage()}</div>;
 }

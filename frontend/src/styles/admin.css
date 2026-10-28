@@ -364,6 +364,18 @@
   opacity: 0.8;
 }
 
+.chart-label-static {
+  margin-top: 0.5rem;
+  font-size: 0.75rem;
+  color: var(--color-gray-600);
+  white-space: nowrap;
+}
+
+.chart-column {
+  position: relative;
+  min-width: 0;
+}
+
 .chart-label {
   position: absolute;
   bottom: -25px;

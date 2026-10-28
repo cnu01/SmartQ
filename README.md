@@ -250,16 +250,10 @@ This project demonstrates:
  
 ---
  
-## 👥 Project Team
- 
-| Name | Roll Number |
-|---|---|
-| **Abhay Krishna** | 233BCAB05 |
-| **Nishan Rosary** | 233BCAB11 |
-| **Stephen Fleming** | 233BCAB24 |
- 
-**Project Guide:** Ms. Junaida Nallakkandy
- 
+## 👥 Contributors
+
+This repository is maintained as an open academic / demo project. Add contributor names in your fork or deployment documentation as needed.
+
 ---
  
 ## 📝 Conclusion
@@ -274,7 +268,7 @@ It moves far beyond basic token generation, delivering a strong foundation for *
  
 <br/>
  
-*Built with ❤️ — Smart'Q Team · 2025*
+*Smart'Q · Queue management demo*
  
 </div>
  

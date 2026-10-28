@@ -48,15 +48,19 @@ const Predictions = ({ onNavigate, goBack, currentPage }) => {
         });
 
         const response = await axios.get(`${API_BASE_URL}/api/predictions`, getAuthConfig());
-        setPredictions(response.data || {
-          peakTimes: [],
-          waitTimePredictions: [],
-          crowdForecast: [],
+        const payload = response.data || {};
+        setPredictions({
+          peakTimes: payload.peakTimes || [],
+          waitTimePredictions: payload.waitTimePredictions || [],
+          crowdForecast: payload.crowdForecast || [],
           mlModelStats: {
             modelAccuracy: null,
             predictionsToday: null,
             avgAccuracy: null,
-            lastUpdated: 'N/A'
+            lastUpdated: 'N/A',
+            isSimulated: true,
+            trained: Boolean(payload.trained),
+            ...(payload.mlModelStats || {})
           }
         });
       } catch (error) {
@@ -81,12 +85,12 @@ const Predictions = ({ onNavigate, goBack, currentPage }) => {
   }, []);
 
   const getPredictionColor = (level) => {
-    switch (level) {
-      case 'High':
+    switch (String(level || '').toLowerCase()) {
+      case 'high':
         return 'var(--color-red)';
-      case 'Medium':
+      case 'medium':
         return 'var(--color-yellow)';
-      case 'Low':
+      case 'low':
         return 'var(--color-green-light)';
       default:
         return 'var(--color-gray-500)';
@@ -96,11 +100,18 @@ const Predictions = ({ onNavigate, goBack, currentPage }) => {
   const getPredictionBadge = (level) => {
     const color = getPredictionColor(level);
     return (
-      <span className="badge" style={{ backgroundColor: `${color}20`, color: color }}>
+      <span className="badge" style={{ backgroundColor: `${color}20`, color: color, textTransform: 'capitalize' }}>
         {level}
       </span>
     );
   };
+
+  const formatStatPercent = (value) =>
+    Number.isFinite(value) ? `${value}%` : 'N/A';
+
+  const statsSubtitle = predictions.mlModelStats?.isSimulated
+    ? 'Estimated from current queue activity'
+    : 'From trained Random Forest models (R² on hold-out data)';
 
   return (
     <div className="admin-layout">
@@ -109,7 +120,7 @@ const Predictions = ({ onNavigate, goBack, currentPage }) => {
         <div className="admin-header">
           <h1>ML-Powered Predictions</h1>
           <p style={{ margin: '0.5rem 0 0 0', color: 'var(--color-gray-500)', fontSize: '0.875rem' }}>
-            AI-driven insights powered by machine learning algorithms
+            {statsSubtitle}
           </p>
         </div>
 
@@ -120,10 +131,15 @@ const Predictions = ({ onNavigate, goBack, currentPage }) => {
           marginBottom: '2rem'
         }}>
           <div className="card">
-            <div style={{ fontSize: '0.875rem', color: 'var(--color-gray-500)', marginBottom: '0.5rem' }}>Model Accuracy</div>
+            <div style={{ fontSize: '0.875rem', color: 'var(--color-gray-500)', marginBottom: '0.5rem' }}>Model Accuracy (wait time)</div>
             <div style={{ fontSize: '2rem', fontWeight: 700, color: 'var(--color-green-light)' }}>
-              {Number.isFinite(predictions.mlModelStats.modelAccuracy) ? `${predictions.mlModelStats.modelAccuracy}%` : 'N/A'}
+              {formatStatPercent(predictions.mlModelStats.modelAccuracy)}
             </div>
+            {!Number.isFinite(predictions.mlModelStats.modelAccuracy) && predictions.mlModelStats.trained && (
+              <div style={{ fontSize: '0.75rem', color: 'var(--color-gray-500)', marginTop: '0.35rem' }}>
+                Restart backend + run <code>npm run seed:demo</code> in backend/
+              </div>
+            )}
           </div>
           <div className="card">
             <div style={{ fontSize: '0.875rem', color: 'var(--color-gray-500)', marginBottom: '0.5rem' }}>Predictions Today</div>
@@ -132,9 +148,9 @@ const Predictions = ({ onNavigate, goBack, currentPage }) => {
             </div>
           </div>
           <div className="card">
-            <div style={{ fontSize: '0.875rem', color: 'var(--color-gray-500)', marginBottom: '0.5rem' }}>Avg Accuracy</div>
+            <div style={{ fontSize: '0.875rem', color: 'var(--color-gray-500)', marginBottom: '0.5rem' }}>Avg Accuracy (all models)</div>
             <div style={{ fontSize: '2rem', fontWeight: 700, color: '#8B5CF6' }}>
-              {Number.isFinite(predictions.mlModelStats.avgAccuracy) ? `${predictions.mlModelStats.avgAccuracy}%` : 'N/A'}
+              {formatStatPercent(predictions.mlModelStats.avgAccuracy)}
             </div>
           </div>
           <div className="card">
@@ -165,7 +181,10 @@ const Predictions = ({ onNavigate, goBack, currentPage }) => {
               Predicted using historical data and ML algorithms
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              {predictions.peakTimes.map((item, index) => {
+              {predictions.peakTimes.length === 0 ? (
+                <div style={{ color: 'var(--color-gray-500)', fontSize: '0.875rem' }}>No peak-time forecasts yet.</div>
+              ) : (
+              predictions.peakTimes.map((item, index) => {
                 const maxCustomers = predictions.peakTimes.length > 0 ? Math.max(...predictions.peakTimes.map(p => p.customers)) : 1;
                 const width = (item.customers / maxCustomers) * 100;
                 return (
@@ -204,7 +223,8 @@ const Predictions = ({ onNavigate, goBack, currentPage }) => {
                     </div>
                   </div>
                 );
-              })}
+              })
+              )}
             </div>
           </div>
 
@@ -213,10 +233,13 @@ const Predictions = ({ onNavigate, goBack, currentPage }) => {
               Wait Time Predictions (ML)
             </h3>
             <div style={{ marginBottom: '1rem', fontSize: '0.875rem', color: 'var(--color-gray-500)' }}>
-              AI-predicted wait times with accuracy metrics
+              Forecast for the next 4 hours at current queue pressure
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              {predictions.waitTimePredictions.map((item, index) => (
+              {predictions.waitTimePredictions.length === 0 ? (
+                <div style={{ color: 'var(--color-gray-500)', fontSize: '0.875rem' }}>No wait-time forecasts yet.</div>
+              ) : (
+              predictions.waitTimePredictions.map((item, index) => (
                 <div key={index} style={{
                   padding: '1.5rem',
                   backgroundColor: 'var(--color-gray-50)',
@@ -246,7 +269,8 @@ const Predictions = ({ onNavigate, goBack, currentPage }) => {
                     )}
                   </div>
                 </div>
-              ))}
+              ))
+              )}
             </div>
           </div>
         </div>
@@ -256,14 +280,17 @@ const Predictions = ({ onNavigate, goBack, currentPage }) => {
             Crowd Level Forecast (ML)
           </h3>
           <div style={{ marginBottom: '1rem', fontSize: '0.875rem', color: 'var(--color-gray-500)' }}>
-            7-day forecast using machine learning models
+            Next 6-hour crowd outlook from peak-time model
           </div>
           <div style={{
             display: 'grid',
             gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
             gap: '1rem'
           }}>
-            {predictions.crowdForecast.map((item, index) => (
+            {predictions.crowdForecast.length === 0 ? (
+              <div style={{ color: 'var(--color-gray-500)', fontSize: '0.875rem' }}>No crowd forecast available yet.</div>
+            ) : (
+            predictions.crowdForecast.map((item, index) => (
               <div key={index} className="card" style={{
                 textAlign: 'center',
                 padding: '1.5rem',
@@ -286,7 +313,8 @@ const Predictions = ({ onNavigate, goBack, currentPage }) => {
                   {item.probability}% probability
                 </div>
               </div>
-            ))}
+            ))
+            )}
           </div>
         </div>
 

@@ -37,7 +37,7 @@ const AdminSettings = ({ onNavigate, goBack, currentPage }) => {
     // Profile State
     const [profile, setProfile] = useState({
         name: 'Main Admin',
-        email: 'admin@smartq.com',
+        email: 'admin@smartq.local',
         phone: '+91 1234567890',
         organization: "Smart'Q Systems",
         location: 'Bangalore, India'

@@ -1,9 +1,18 @@
 const express = require("express");
 const Queue = require("../models/queue");
 const { authMiddleware, adminMiddleware } = require("../middleware/auth");
-const { getPredictionsIfTrained } = require("../services/mlPredictionService");
+const { getPredictionsIfTrained, clearHealthCache } = require("../services/mlPredictionService");
 
 const router = express.Router();
+
+const buildJoinsByHour = (queues) => {
+  const joinsByHour = {};
+  queues.forEach((item) => {
+    const hour = new Date(item.createdAt || Date.now()).getHours();
+    joinsByHour[hour] = (joinsByHour[hour] || 0) + 1;
+  });
+  return joinsByHour;
+};
 
 router.get("/", authMiddleware, adminMiddleware, async (req, res) => {
   try {
@@ -15,11 +24,17 @@ router.get("/", authMiddleware, adminMiddleware, async (req, res) => {
       { $limit: 1 }
     ]);
 
+    const queueRows = await Queue.find({}).select("createdAt").lean();
+    const joinsByHour = buildJoinsByHour(queueRows);
+
+    clearHealthCache();
+
     const service = topService[0]?._id || "General";
     const predictions = await getPredictionsIfTrained({
       service,
       positionInQueue: 1,
-      totalWaiting
+      totalWaiting,
+      joinsByHour
     });
 
     if (!predictions) {
@@ -43,7 +58,7 @@ router.get("/", authMiddleware, adminMiddleware, async (req, res) => {
     return res.json({
       trained: Boolean(predictions?.mlModelStats?.trained),
       ...predictions,
-      crowdForecast: []
+      crowdForecast: predictions.crowdForecast || []
     });
   } catch (error) {
     return res.status(500).json({ message: error.message });

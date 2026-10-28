@@ -284,8 +284,8 @@ describe("happy path e2e flow", () => {
       .post("/api/queue/join")
       .send({
         service: "General Consultation",
-        guestName: "Nishan",
-        guestEmail: "nishan@example.com",
+        guestName: "Demo Guest",
+        guestEmail: "demo.guest@example.com",
         isCustomerUser: true,
         eventId: createEventRes.body._id,
         eventName: createEventRes.body.title,
@@ -312,7 +312,7 @@ describe("happy path e2e flow", () => {
 
     expect(adminQueueRes.status).toBe(200);
     expect(adminQueueRes.body).toHaveLength(1);
-    expect(adminQueueRes.body[0].guestName).toBe("Nishan");
+    expect(adminQueueRes.body[0].guestName).toBe("Demo Guest");
 
     const refreshedEventsRes = await request(app).get("/api/events");
     expect(refreshedEventsRes.status).toBe(200);

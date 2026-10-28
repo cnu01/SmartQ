@@ -21,7 +21,9 @@ configured_origins = [
     for origin in str(os.environ.get("FRONTEND_ORIGINS", "")).split(",")
     if origin.strip()
 ]
-CORS(app, origins=configured_origins or default_origins)
+# Browser + Netlify preview URLs; set FRONTEND_ORIGINS in Render for explicit allowlist.
+cors_origins = configured_origins if configured_origins else default_origins
+CORS(app, origins=cors_origins, supports_credentials=True)
 
 ml_models = QueueMLModels()
 
@@ -108,6 +110,7 @@ def train_models():
             'peakHours':   ml_models.train_peak_hours_model(data)
         }
         ml_models.is_trained = True
+        ml_models.record_training_results(results)
         return jsonify({'message': 'Models trained successfully', 'results': results})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -119,7 +122,8 @@ def health():
         'trained': ml_models.is_trained,
         'total_records': ml_models.total_records,
         'buffer_size': len(ml_models.buffer),
-        'trains_at': ml_models.RETRAIN_EVERY if hasattr(ml_models, 'RETRAIN_EVERY') else 5
+        'trains_at': ml_models.RETRAIN_EVERY if hasattr(ml_models, 'RETRAIN_EVERY') else 5,
+        'model_scores': getattr(ml_models, 'model_scores', {})
     })
 
 if __name__ == '__main__':

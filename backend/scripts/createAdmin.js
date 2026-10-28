@@ -10,7 +10,7 @@ async function createAdmin() {
 
   const admin = new User({
     name: "Main Admin",
-    email: "admin@smartq.com",
+    email: "admin@smartq.local",
     password: hashedPassword,
     role: "admin"
   });

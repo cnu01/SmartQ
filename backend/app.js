@@ -56,7 +56,11 @@ const allowedOrigins = configuredFrontendOrigins.length > 0
 const isOriginAllowed = (origin) => {
   if (!origin) return true;
   if (allowedOrigins.includes(origin)) return true;
-  return origin.endsWith(".vercel.app");
+  return (
+    origin.endsWith(".vercel.app") ||
+    origin.endsWith(".netlify.app") ||
+    origin.endsWith(".netlify.com")
+  );
 };
 
 app.use(cors({
@@ -177,8 +181,8 @@ app.get("/api/health", (req, res) => {
 app.get("/api/test-email", testEmailLimiter, async (req, res, next) => {
   try {
     const result = await sendQueueRegistrationEmail({
-      toEmail: req.query.toEmail || "nishanrosary908@gmail.com",
-      userName: req.query.userName || "Nishan",
+      toEmail: req.query.toEmail || "demo.recipient@example.com",
+      userName: req.query.userName || "Demo User",
       tokenNumber: req.query.tokenNumber || "A123",
       serviceName: req.query.serviceName || "General Service",
       estimatedWaitTime: Number(req.query.estimatedWaitTime || 15)

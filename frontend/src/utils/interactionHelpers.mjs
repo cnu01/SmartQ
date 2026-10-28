@@ -61,6 +61,7 @@ export const applyAdminLoginSuccess = ({
   }
 
   storage.setItem("token", data.accessToken);
+  storage.setItem("authRole", "admin");
 
   if (typeof setAuthToken === "function") {
     setAuthToken(data.accessToken);

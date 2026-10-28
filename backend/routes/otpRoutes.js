@@ -138,10 +138,12 @@ router.post("/verify-otp", otpVerifyLimiter, async (req, res) => {
 
     await Otp.deleteMany({ email: normalizedEmail });
 
+    const accessTokenExpiresIn = process.env.JWT_ACCESS_EXPIRES_IN || "8h";
+
     const accessToken = jwt.sign(
       { id: user._id, role: user.role },
       process.env.JWT_ACCESS_SECRET,
-      { expiresIn: "15m" }
+      { expiresIn: accessTokenExpiresIn }
     );
 
     res.json({
