@@ -3,7 +3,7 @@
 
 [build]
   base = "frontend"
-  command = "npm ci && npm run build"
+  command = "npm ci && node -e \"console.log('[Netlify build] REACT_APP_API_URL=', process.env.REACT_APP_API_URL || '(not set — use Netlify env or public/smartq-config.js)')\" && npm run build"
   publish = "dist"
 
 [build.environment]

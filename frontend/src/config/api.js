@@ -42,6 +42,11 @@ const getLocalMlBaseUrl = () => {
   return fromEnv || "http://localhost:5001";
 };
 
+const isHostedStaticSite = (hostname) =>
+  hostname.endsWith(".netlify.app") ||
+  hostname.endsWith(".netlify.com") ||
+  hostname.endsWith(".vercel.app");
+
 const getApiBaseUrl = () => {
   if (typeof window !== "undefined" && isLocalHost(window.location.hostname)) {
     return getLocalApiBaseUrl();
@@ -61,16 +66,23 @@ const getApiBaseUrl = () => {
     return "";
   }
 
-  const { protocol, hostname, origin } = window.location;
+  const { hostname } = window.location;
 
   if (isLocalHost(hostname)) {
     return getLocalApiBaseUrl();
   }
 
+  if (isHostedStaticSite(hostname)) {
+    console.error(
+      "Smart'Q: API URL missing. Set REACT_APP_API_URL on Netlify (redeploy) or set apiUrl in frontend/public/smartq-config.js to your Render backend URL."
+    );
+    return "";
+  }
+
   console.warn(
-    "Smart'Q: set REACT_APP_API_URL at build time (Netlify) to your Render backend URL."
+    "Smart'Q: set REACT_APP_API_URL at build time to your Render backend URL."
   );
-  return normalizeBaseUrl(origin);
+  return normalizeBaseUrl(window.location.origin);
 };
 
 const getMlBaseUrl = () => {
